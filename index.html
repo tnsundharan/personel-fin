@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Paisa Book – Loans, Cards & Daily Money</title>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#EEF2F0;--surf:#fff;--ink:#12302B;--mute:#5C7571;--line:#D4DEDA;--acc:#3B4BA8;--accfg:#fff;--pos:#1E7A52;--neg:#B3402F;--warn:#B77900;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);color-scheme:light}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0F1D1A;--surf:#17292579;--surf:#172925;--ink:#E3EEEA;--mute:#8FA8A3;--line:#2A423D;--acc:#8E9BFF;--accfg:#0F1D1A;--pos:#5FD39B;--neg:#FF8F7C;--warn:#F0B84A;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 "Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif}
+main{max-width:640px;margin:0 auto;padding:16px 16px 48px}
+h1{font-size:26px;font-weight:800;margin:4px 0 2px;letter-spacing:-.02em}
+h2{font-size:17px;font-weight:600;margin:22px 0 8px}
+.sub{color:var(--mute);margin:0 0 14px;font-size:14px}
+nav{display:flex;gap:4px;background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:4px;margin-bottom:16px;overflow-x:auto}
+nav button{flex:1;border:0;background:none;color:var(--mute);font:inherit;font-size:14px;padding:9px 10px;border-radius:9px;cursor:pointer;white-space:nowrap}
+nav button[aria-selected=true]{background:var(--acc);color:var(--accfg);font-weight:600}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px}
+.seg button{border:0;background:var(--surf);color:var(--mute);font:inherit;font-size:14px;padding:7px 16px;cursor:pointer}
+.seg button[aria-pressed=true]{background:var(--ink);color:var(--bg)}
+.panel{background:var(--surf);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.stat{background:var(--surf);border:1px solid var(--line);border-radius:12px;padding:10px}
+.stat span{display:block;color:var(--mute);font-size:12px}
+.stat b{font-size:18px;font-weight:800;word-break:break-word}
+.pos{color:var(--pos)}.neg{color:var(--neg)}.warn{color:var(--warn)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--line)}
+.row:last-child{border-bottom:0}
+.row small{display:block;color:var(--mute);font-size:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+label{display:block;font-size:12px;color:var(--mute);margin-bottom:3px}
+input,select{width:100%;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--line);border-radius:9px;background:var(--bg);color:var(--ink)}
+.btn{width:100%;margin-top:10px;border:0;background:var(--acc);color:var(--accfg);font:inherit;font-weight:600;padding:11px;border-radius:10px;cursor:pointer}
+.sm{border:1px solid var(--line);background:none;color:var(--ink);font:inherit;font-size:13px;padding:5px 10px;border-radius:8px;cursor:pointer}
+.sm.del{color:var(--neg)}
+.bar{height:8px;background:var(--line);border-radius:6px;overflow:hidden;margin:8px 0 4px}
+.bar i{display:block;height:100%;background:var(--acc)}
+.bar i.hi{background:var(--neg)}
+.empty{color:var(--mute);text-align:center;padding:18px 0;font-size:14px}
+.btns{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+<h1>Paisa Book</h1>
+<p class="sub">Daily spending, loans, EMIs and credit cards in one place. Data stays on this device.</p>
+<nav id="tabs" role="tablist"></nav>
+<div id="view"></div>
+</main>
+<script>
+const TABS=[["home","Overview"],["ledger","Daily log"],["loans","Loans & EMI"],["cards","Cards"],["local","Local finance"],["calc","Calculator"]];
+const CATS=["Food","Rent","Travel","Bills","Shopping","Health","Salary","Interest","Other"];
+let S={tx:[],loans:[],cards:[],lf:[]},tab="home",per="month";
+try{const d=localStorage.getItem("paisabook");if(d)S=Object.assign(S,JSON.parse(d))}catch(e){}
+const save=()=>{try{localStorage.setItem("paisabook",JSON.stringify(S))}catch(e){}};
+const $=id=>document.getElementById(id);
+const fmt=n=>"₹"+Math.round(n).toLocaleString("en-IN");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const iso=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+const today=()=>iso(new Date());
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+function range(){const n=new Date(),t=iso(n);
+ if(per==="day")return[t,t];
+ if(per==="week"){const s=new Date(n);s.setDate(n.getDate()-((n.getDay()+6)%7));const e=new Date(s);e.setDate(s.getDate()+6);return[iso(s),iso(e)]}
+ return[iso(new Date(n.getFullYear(),n.getMonth(),1)),iso(new Date(n.getFullYear(),n.getMonth()+1,0))]}
+const inRange=()=>{const[a,b]=range();return S.tx.filter(t=>t.date>=a&&t.date<=b)};
+function emiOf(P,rate,n){const r=rate/1200;if(!r)return P/n;const f=Math.pow(1+r,n);return P*r*f/(f-1)}
+function loanInfo(l){const r=l.rate/1200,k=l.paid,e=l.emi;
+ let bal=r?l.principal*Math.pow(1+r,k)-e*(Math.pow(1+r,k)-1)/r:l.principal-e*k;
+ bal=Math.max(0,bal);const intPaid=Math.max(0,k*e-(l.principal-bal));
+ return{bal,intPaid,left:l.months-k,total:e*l.months,totInt:e*l.months-l.principal}}
+function nextDue(day){const n=new Date();let d=new Date(n.getFullYear(),n.getMonth(),Math.min(day,28));
+ if(iso(d)<today())d=new Date(n.getFullYear(),n.getMonth()+1,Math.min(day,28));return d}
+const daysTo=d=>Math.round((new Date(iso(d))-new Date(today()))/864e5);
+function periodSwitch(){return `<div class="seg">${["day","week","month"].map(p=>`<button aria-pressed="${per===p}" onclick="per='${p}';render()">${{day:"Today",week:"This week",month:"This month"}[p]}</button>`).join("")}</div>`}
+function dueRows(){const items=[];
+ S.loans.filter(l=>l.paid<l.months).forEach(l=>{const d=nextDue(l.day);items.push({n:l.name+" EMI",amt:l.emi,days:daysTo(d),d})});
+ S.cards.filter(c=>c.used>0).forEach(c=>{const d=nextDue(c.due);items.push({n:c.name+" card bill",amt:c.used,days:daysTo(d),d})});
+ items.sort((a,b)=>a.days-b.days);
+ if(!items.length)return `<div class="empty">No dues yet. Add a loan or card to see reminders.</div>`;
+ return items.map(i=>`<div class="row"><div>${esc(i.n)}<small>${i.d.toLocaleDateString("en-IN",{day:"numeric",month:"short"})} · ${i.days===0?"due today":"in "+i.days+" days"}</small></div><b class="${i.days<=3?"neg":""}">${fmt(i.amt)}</b></div>`).join("")}
+
+const V={
+home(){const tx=inRange(),inc=tx.filter(t=>t.type==="in").reduce((a,t)=>a+t.amt,0),out=tx.filter(t=>t.type==="out").reduce((a,t)=>a+t.amt,0);
+ const emi=S.loans.filter(l=>l.paid<l.months).reduce((a,l)=>a+l.emi,0);
+ const lim=S.cards.reduce((a,c)=>a+c.limit,0),used=S.cards.reduce((a,c)=>a+c.used,0),debt=S.loans.reduce((a,l)=>a+loanInfo(l).bal,0);
+ const byCat={};tx.filter(t=>t.type==="out").forEach(t=>byCat[t.cat]=(byCat[t.cat]||0)+t.amt);
+ const cats=Object.entries(byCat).sort((a,b)=>b[1]-a[1]);
+ return periodSwitch()+`<div class="stats"><div class="stat"><span>Income</span><b class="pos">${fmt(inc)}</b></div><div class="stat"><span>Spent</span><b class="neg">${fmt(out)}</b></div><div class="stat"><span>Left</span><b>${fmt(inc-out)}</b></div></div>
+ <h2>Upcoming dues</h2><div class="panel">${dueRows()}</div>
+ <h2>Commitments</h2><div class="panel">
+ <div class="row"><span>Monthly EMIs</span><b>${fmt(emi)}</b></div>
+ <div class="row"><span>Interest you receive / month</span><b class="pos">${fmt(S.lf.filter(x=>!x.closed&&x.dir==="lent").reduce((a,x)=>a+x.p*x.r/100,0))}</b></div>
+ <div class="row"><span>Interest you pay / month</span><b class="neg">${fmt(S.lf.filter(x=>!x.closed&&x.dir==="borrowed").reduce((a,x)=>a+x.p*x.r/100,0))}</b></div>
+ <div class="row"><span>Loan balance left</span><b>${fmt(debt)}</b></div>
+ <div class="row"><span>Card usage</span><b class="${lim&&used/lim>.3?"warn":""}">${lim?Math.round(used/lim*100)+"% of "+fmt(lim):"No cards"}</b></div>
+ ${inc?`<div class="row"><span>EMIs as share of income this month</span><b>${per==="month"?Math.round(emi/inc*100)+"%":"–"}</b></div>`:""}</div>
+ <h2>Where it went</h2><div class="panel">${cats.length?cats.map(([c,v])=>`<div class="row"><span>${c}</span><b>${fmt(v)}</b></div>`).join(""):`<div class="empty">Nothing spent in this period.</div>`}</div>`},
+ledger(){const tx=inRange().sort((a,b)=>b.date.localeCompare(a.date));
+ return `<div class="panel"><div class="grid"><div><label for="tt">Type</label><select id="tt"><option value="out">Spent</option><option value="in">Received</option></select></div>
+ <div><label for="ta">Amount (₹)</label><input id="ta" type="number" inputmode="decimal" min="0"></div>
+ <div><label for="tc">Category</label><select id="tc">${CATS.map(c=>`<option>${c}</option>`).join("")}</select></div>
+ <div><label for="td">Date</label><input id="td" type="date" value="${today()}"></div></div>
+ <label for="tn" style="margin-top:8px">Note</label><input id="tn" placeholder="Optional">
+ <button class="btn" onclick="addTx()">Add entry</button></div>`+periodSwitch()+
+ `<div class="panel">${tx.length?tx.map(t=>`<div class="row"><div>${esc(t.note||t.cat)}<small>${t.cat} · ${t.date}</small></div><div><b class="${t.type==="in"?"pos":"neg"}">${t.type==="in"?"+":"−"}${fmt(t.amt)}</b> <button class="sm del" aria-label="Delete entry" onclick="del('tx','${t.id}')">Delete</button></div></div>`).join(""):`<div class="empty">No entries in this period. Add your first one above.</div>`}</div>`},
+loans(){return `<div class="panel"><div class="grid"><div><label for="ln">Loan name</label><input id="ln" placeholder="Home, bike, personal"></div>
+ <div><label for="lp">Amount (₹)</label><input id="lp" type="number" inputmode="decimal"></div>
+ <div><label for="lr">Interest % per year</label><input id="lr" type="number" inputmode="decimal" step="0.01"></div>
+ <div><label for="lm">Tenure (months)</label><input id="lm" type="number" inputmode="numeric"></div>
+ <div><label for="ld">EMI date (1–28)</label><input id="ld" type="number" min="1" max="28" value="5"></div>
+ <div><label for="lk">EMIs already paid</label><input id="lk" type="number" min="0" value="0"></div></div>
+ <button class="btn" onclick="addLoan()">Add loan</button></div>`+
+ (S.loans.length?S.loans.map(l=>{const i=loanInfo(l),pc=Math.round(l.paid/l.months*100);
+ return `<div class="panel"><div class="row" style="border:0;padding:0"><b>${esc(l.name)}</b><b>${fmt(l.emi)}/mo</b></div>
+ <div class="bar"><i style="width:${pc}%"></i></div><small style="color:var(--mute)">${l.paid} of ${l.months} EMIs paid · ${i.left} left</small>
+ <div class="row"><span>Balance left</span><b>${fmt(i.bal)}</b></div>
+ <div class="row"><span>Interest paid so far</span><b>${fmt(i.intPaid)}</b></div>
+ <div class="row"><span>Total interest over loan</span><b>${fmt(i.totInt)}</b></div>
+ <div class="btns"><button class="sm" onclick="payEmi('${l.id}')" ${i.left<=0?"disabled":""}>Mark EMI paid</button><button class="sm" onclick="undoEmi('${l.id}')">Undo last</button><button class="sm del" onclick="del('loans','${l.id}')">Delete</button></div></div>`}).join(""):`<div class="empty">No loans yet. Add one to track EMIs and balance.</div>`)},
+cards(){return `<div class="panel"><div class="grid"><div><label for="cn">Card name</label><input id="cn" placeholder="HDFC, SBI"></div>
+ <div><label for="cl">Credit limit (₹)</label><input id="cl" type="number" inputmode="decimal"></div>
+ <div><label for="cu">Used so far (₹)</label><input id="cu" type="number" inputmode="decimal" value="0"></div>
+ <div><label for="cd">Bill due date (1–28)</label><input id="cd" type="number" min="1" max="28" value="15"></div>
+ <div><label for="ca">Interest % per year</label><input id="ca" type="number" step="0.1" value="42"></div></div>
+ <button class="btn" onclick="addCard()">Add card</button></div>`+
+ (S.cards.length?S.cards.map(c=>{const u=c.limit?c.used/c.limit:0;
+ return `<div class="panel"><div class="row" style="border:0;padding:0"><b>${esc(c.name)}</b><b class="${u>.3?"warn":""}">${Math.round(u*100)}% used</b></div>
+ <div class="bar"><i class="${u>.3?"hi":""}" style="width:${Math.min(100,u*100)}%"></i></div>
+ <div class="row"><span>Used / limit</span><b>${fmt(c.used)} / ${fmt(c.limit)}</b></div>
+ <div class="row"><span>Interest if bill is not paid</span><b>${fmt(c.used*c.apr/1200)}/mo</b></div>
+ <div class="row"><span>Next due</span><b>${nextDue(c.due).toLocaleDateString("en-IN",{day:"numeric",month:"short"})}</b></div>
+ <small style="color:var(--mute)">Keeping use under 30% of the limit helps your credit score.</small>
+ <div class="btns"><button class="sm" onclick="cardUse('${c.id}')">Update used amount</button><button class="sm" onclick="cardPay('${c.id}')">Bill paid in full</button><button class="sm del" onclick="del('cards','${c.id}')">Delete</button></div></div>`}).join(""):`<div class="empty">No cards yet. Add one to track usage and due dates.</div>`)},
+local(){const open=S.lf.filter(x=>!x.closed),done=S.lf.filter(x=>x.closed),L=open.filter(x=>x.dir==="lent"),B=open.filter(x=>x.dir==="borrowed");
+ const sum=(a,f)=>a.reduce((s,x)=>s+f(x),0);
+ return `<div class="stats"><div class="stat"><span>Lent out</span><b>${fmt(sum(L,x=>x.p))}</b></div><div class="stat"><span>Interest in / month</span><b class="pos">${fmt(sum(L,x=>x.p*x.r/100))}</b></div><div class="stat"><span>Interest out / month</span><b class="neg">${fmt(sum(B,x=>x.p*x.r/100))}</b></div></div>
+ <h2>Add interest-only entry</h2><div class="panel"><p class="sub" style="margin-bottom:8px">Only interest is paid each month. The capital stays the same until it is returned.</p><div class="grid"><div><label for="fd">Type</label><select id="fd"><option value="lent">I lent money (I receive interest)</option><option value="borrowed">I borrowed (I pay interest)</option></select></div>
+ <div><label for="fn">Person name</label><input id="fn" placeholder="Ramesh"></div>
+ <div><label for="fp">Capital (₹)</label><input id="fp" type="number" inputmode="decimal"></div>
+ <div><label for="fr">Interest rate</label><input id="fr" type="number" step="0.01" inputmode="decimal" placeholder="2"></div>
+ <div><label for="fu">Rate is</label><select id="fu"><option value="m">% per month</option><option value="y">% per year</option></select></div>
+ <div><label for="fs">Start date</label><input id="fs" type="date" value="${today()}"></div></div>
+ <button class="btn" onclick="addLf()">Add entry</button></div>`+
+ (open.length?open.map(lfCard).join(""):`<div class="empty">No interest-only entries yet. Add one above.</div>`)+
+ (done.length?`<h2>Closed</h2>`+done.map(lfCard).join(""):"")},
+calc(){return `<div class="panel"><div class="grid"><div><label for="xp">Amount (₹)</label><input id="xp" type="number" inputmode="decimal" oninput="calc()"></div>
+ <div><label for="xr">Interest % per year</label><input id="xr" type="number" step="0.01" inputmode="decimal" oninput="calc()"></div>
+ <div><label for="xm">Months</label><input id="xm" type="number" inputmode="numeric" oninput="calc()"></div></div></div>
+ <div id="cout" class="panel"><div class="empty">Enter amount, rate and months to see the EMI.</div></div>`}
+};
+function calc(){const P=+$("xp").value,R=+$("xr").value,N=+$("xm").value,o=$("cout");
+ if(!(P>0&&N>0&&R>=0)){o.innerHTML=`<div class="empty">Enter amount, rate and months to see the EMI.</div>`;return}
+ const e=emiOf(P,R,N),si=P*R/100*N/12;
+ o.innerHTML=`<div class="row"><span>Monthly EMI</span><b>${fmt(e)}</b></div><div class="row"><span>Weekly set-aside</span><b>${fmt(e*12/52)}</b></div><div class="row"><span>Daily set-aside</span><b>${fmt(e*12/365)}</b></div>
+ <div class="row"><span>Total interest (EMI)</span><b class="neg">${fmt(e*N-P)}</b></div><div class="row"><span>Total payable</span><b>${fmt(e*N)}</b></div>
+ <div class="row"><span>Simple interest, for comparison</span><b>${fmt(si)}</b></div>`}
+function addTx(){const a=+$("ta").value;if(!(a>0)){$("ta").focus();return}
+ S.tx.push({id:uid(),type:$("tt").value,amt:a,cat:$("tc").value,date:$("td").value||today(),note:$("tn").value.trim()});save();render()}
+function addLoan(){const n=$("ln").value.trim(),p=+$("lp").value,r=+$("lr").value,m=+$("lm").value;
+ if(!n||!(p>0)||!(m>0)||!(r>=0)||$("lr").value===""){alert("Fill in name, amount, interest rate and tenure.");return}
+ S.loans.push({id:uid(),name:n,principal:p,rate:r,months:m,day:+$("ld").value||5,paid:Math.min(m,+$("lk").value||0),emi:emiOf(p,r,m)});save();render()}
+function addCard(){const n=$("cn").value.trim(),l=+$("cl").value;if(!n||!(l>0)){alert("Fill in card name and credit limit.");return}
+ S.cards.push({id:uid(),name:n,limit:l,used:+$("cu").value||0,due:+$("cd").value||15,apr:+$("ca").value||0});save();render()}
+const find=(k,id)=>S[k].find(x=>x.id===id);
+function monthsDone(s){const a=new Date(s+"T00:00"),n=new Date();let m=(n.getFullYear()-a.getFullYear())*12+n.getMonth()-a.getMonth();if(n.getDate()<a.getDate())m--;return Math.max(0,m)}
+function lfCard(x){const mo=x.p*x.r/100,m=monthsDone(x.start),due=mo*m,got=x.rec.reduce((a,r)=>a+r.amt,0),pend=due-got,lent=x.dir==="lent";
+ return `<div class="panel"><div class="row" style="border:0;padding:0"><b>${esc(x.party)}</b><b class="${lent?"pos":"neg"}">${lent?"You receive":"You pay"} ${fmt(mo)}/mo</b></div>
+ <small style="color:var(--mute)">${lent?"Lent to":"Borrowed from"} ${esc(x.party)} on ${x.start} at ${+(x.r).toFixed(2)}% per month (${+(x.r*12).toFixed(2)}% per year)</small>
+ <div class="row"><span>Capital</span><b>${fmt(x.p)}</b></div>
+ <div class="row"><span>Months completed</span><b>${m}</b></div>
+ <div class="row"><span>Interest due so far</span><b>${fmt(due)}</b></div>
+ <div class="row"><span>Interest ${lent?"received":"paid"}</span><b>${fmt(got)}</b></div>
+ <div class="row"><span>${pend>=0?"Interest pending":"Paid in advance"}</span><b class="${pend>0?"warn":""}">${fmt(Math.abs(pend))}</b></div>
+ ${x.closed?`<small style="color:var(--mute)">Capital returned on ${x.closed}</small>`:""}
+ <div class="btns">${x.closed?"":`<button class="sm" onclick="lfPay('${x.id}')">Interest ${lent?"received":"paid"}</button><button class="sm" onclick="lfClose('${x.id}')">Capital returned</button>`}<button class="sm del" onclick="del('lf','${x.id}')">Delete</button></div></div>`}
+function addLf(){const n=$("fn").value.trim(),p=+$("fp").value;let r=+$("fr").value;if(!n||!(p>0)||!(r>0)){alert("Fill in person name, capital and interest rate.");return}
+ if($("fu").value==="y")r=r/12;
+ S.lf.push({id:uid(),dir:$("fd").value,party:n,p:p,r:r,start:$("fs").value||today(),rec:[],closed:null});save();render()}
+function lfPay(id){const x=find("lf",id),def=Math.round(x.p*x.r/100),v=prompt("Interest amount (₹)",def);if(v===null||!(+v>0))return;
+ x.rec.push({date:today(),amt:+v});S.tx.push({id:uid(),type:x.dir==="lent"?"in":"out",amt:+v,cat:"Interest",date:today(),note:"Interest "+(x.dir==="lent"?"from ":"to ")+x.party});save();render()}
+function lfClose(id){if(confirm("Mark capital as returned and close this entry?")){find("lf",id).closed=today();save();render()}}
+function payEmi(id){const l=find("loans",id);if(l.paid<l.months){l.paid++;S.tx.push({id:uid(),type:"out",amt:l.emi,cat:"Bills",date:today(),note:l.name+" EMI"});save();render()}}
+function undoEmi(id){const l=find("loans",id);if(l.paid>0){l.paid--;save();render()}}
+function cardUse(id){const c=find("cards",id),v=prompt("Amount used on "+c.name+" now (₹)",c.used);if(v!==null&&v!==""&&+v>=0){c.used=+v;save();render()}}
+function cardPay(id){const c=find("cards",id);if(c.used>0){S.tx.push({id:uid(),type:"out",amt:c.used,cat:"Bills",date:today(),note:c.name+" card bill"});c.used=0;save();render()}}
+function del(k,id){if(confirm("Delete this? This cannot be undone.")){S[k]=S[k].filter(x=>x.id!==id);save();render()}}
+function render(){$("tabs").innerHTML=TABS.map(([k,n])=>`<button role="tab" aria-selected="${tab===k}" onclick="tab='${k}';render()">${n}</button>`).join("");
+ $("view").innerHTML=V[tab]()}
+render();
+</script>
+</body>
+</html>
